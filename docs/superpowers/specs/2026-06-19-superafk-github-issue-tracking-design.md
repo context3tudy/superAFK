@@ -25,7 +25,7 @@ superAFK 自己也是一堆 skill（像 obra/superpowers）。它**不修改 sup
 
 superpowers 的工作流以**文件**为载体：
 
-- `brainstorming` → 写出 spec：`docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`；可把一个 idea 拆成多个 **sub-project**，每个 sub-project 各走一遍 spec→plan→实现。
+- `brainstorming` → 先**评估范围**：把一个 idea 拆成多个 **sub-project**，或确定只有一个 project；然后写出 spec：`docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`。每个 sub-project 各走一遍 spec→plan→实现。
 - `writing-plans` → 写出 plan：`docs/superpowers/plans/YYYY-MM-DD-<feature>.md`，内含 `### Task N` 块和 bite-sized `- [ ]` step。一个 spec 可拆成多个 plan。
 - `executing-plans` / `subagent-driven-development` → 勾 checkbox、逐步 commit。
 - `finishing-a-development-branch` → 收尾。
@@ -42,7 +42,7 @@ superpowers 的工作流以**文件**为载体：
 SessionStart hook ──注入 superafk-guide（静态规则）──▶ 模型
         │
         ▼  用户照常用 superpowers
-brainstorm→spec文件 / writing-plans→plan文件 / executing→勾 checkbox+commit
+idea 定范围（拆分则写 roadmap 文件） / brainstorm→spec文件 / writing-plans→plan文件 / executing→勾 checkbox+commit
         │  每到里程碑，模型照"注入的规则"主动调 superafk:sync
         ▼
 superafk:sync ──读产物──▶ 调 gh：建/更新/关闭 α 树上的 issue（幂等）
@@ -57,7 +57,8 @@ superafk:sync ──读产物──▶ 调 gh：建/更新/关闭 α 树上的 i
 | `skills/superafk-guide/SKILL.md` | 被注入的**路由规则**：映射、触发时机、纪律。指向 worker |
 | `skills/superafk-sync/SKILL.md` | **worker**：读产物 → 算节点链 → 调 gh upsert/close → 维护 α 树 |
 
-> 注：第一期的 hook 不做动态读取（不查 gh、不注入"续传指针"、不做对账）——那些都是第二期（issue→superpowers）。因此 hook 没有 gh 依赖。
+> 注 1：第一期的 hook 不做动态读取（不查 gh、不注入"续传指针"、不做对账）——那些都是第二期。因此 hook 没有 gh 依赖。
+> 注 2：`roadmap` / `spec` / `plan` 文件都写在**用户项目**的 `docs/superpowers/` 下（不是插件 repo 内）。roadmap 由模型在 brainstorming 拆解时写出（guide 提示），superafk:sync 只负责把它镜像成 issue——分工同 spec/plan：模型写文档、sync 写 issue。
 
 ---
 
@@ -66,65 +67,82 @@ superafk:sync ──读产物──▶ 调 gh：建/更新/关闭 α 树上的 i
 superpowers 产物是一棵多层树，基数如下：
 
 ```
-Idea
+Idea                              ◀── 范围确定时即建 issue；拆分时落 roadmap 文件
 └── 1..N  Sub-project
     └── 1..N  Spec
-        └── 1..N  Plan        ◀── issue 最小粒度（对齐 executing-plans）
-            └── 1..N  Task     ◀── 进 Plan-issue body 的 - [ ] 清单
-                └── 1..N  Step  ◀── 不单独追踪，只留"下一步"指针
+        └── 1..N  Plan            ◀── issue 最小粒度（对齐 executing-plans）
+            └── 1..N  Task        ◀── 进 Plan-issue body 的 - [ ] 清单
+                └── 1..N  Step    ◀── 不单独追踪，只留"下一步"指针
 ```
 
 - **issue 最小粒度 = Plan**（因为 superpowers 里最小的"可独立执行/验证单元"是 executing-plans 执行的 plan）。Task/Step 不开 issue。
 - **α 全树**：Idea / Sub-project / Spec / Plan **每层都开 issue**，用**原生 sub-issue** 连父子。
+- **Idea issue 不惰性创建**：在 brainstorming **确定范围的那一刻**就建（拆成多 sub-project，或确定单 project）。动机：那时上下文还小；等 spec 落地再建，上下文已增长很多。
+- **拆分 → 落 roadmap**：idea 被拆成多个 sub-project 时，把拆解写成 `docs/superpowers/roadmaps/YYYY-MM-DD-<idea-slug>.md`，**Idea issue 链接它**。roadmap 同时是 Idea 与各 Sub-project issue 的内容来源。
 - **层级用 label 区分**：`superafk:idea` / `superafk:subproject` / `superafk:spec` / `superafk:plan`。
 - **进度用 open/closed 表达**：open=进行中、closed=完成（不另加 status label，YAGNI）。
 - issue **types**（org 级功能）若可用可顺带加，但**不依赖**；个人 repo 仅靠 label。
-- 未被拆解的简单 idea 仍走完整 4 层直链（1:1:1:1），遵循 α。
+- **单 project 的简单 idea**：在"确定只有一个 project"时即建 Idea issue（无 roadmap）；其 Sub-project / Spec / Plan issue 随对应产物落地再建（T1+），仍遵循 α 全树。
 
-### 端到端示例（"加 dark mode"）
+### 端到端示例（"加 dark mode"，拆成多 sub-project）
 
 ```
-#101 💡 Idea: 加 dark mode            [superafk:idea]            open
-└─ #102 📦 Sub-project: UI theming    [superafk:subproject]     open
-   └─ #103 📄 Spec: dark-mode         [superafk:spec]           open
-      └─ #104 🔧 Plan: dark-mode      [superafk:plan]           open
+#101 💡 Idea: 加 dark mode            [superafk:idea]        open   ← roadmap 链接
+└─ #102 📦 Sub-project: UI theming    [superafk:subproject]  open
+   └─ #103 📄 Spec: dark-mode         [superafk:spec]        open
+      └─ #104 🔧 Plan: dark-mode      [superafk:plan]        open
             body: Task 1..4 的 - [ ] + 续传状态块
+roadmap: docs/superpowers/roadmaps/2026-06-19-add-dark-mode.md  ← #101 指向它
 ```
 
 ---
 
-## 5. 四层 issue body 模板
+## 5. 文档与 issue 模板
 
-每个模板**末尾埋一行 marker**（机器锚点，即"身份"，见 §6）。
+每个 issue 模板**末尾埋一行 marker**（机器锚点，即"身份"，见 §6）。
 
-**Idea**（`superafk:idea`，epic 顶层）
+### Roadmap 文件模板（仅 idea 拆成多 sub-project 时；由模型写）
+```markdown
+# 🗺️ Roadmap：<Idea 标题>
+<想法的一段话目标>
+
+## Sub-projects
+1. **<sub-project A>** — <范围>；依赖：无
+2. **<sub-project B>** — <范围>；依赖：A
+
+## 建议构建顺序
+A → B
+```
+
+### Idea issue（`superafk:idea`，epic 顶层）
 ```markdown
 # 💡 <Idea 标题>
 <想法的一段话目标，来自 brainstorming>
 
+**Roadmap：** `docs/superpowers/roadmaps/2026-06-19-add-dark-mode.md`   （仅拆分时有此行）
 **进度：** 1/3 sub-project 完成
 
 ## Sub-projects
 - [x] #102 <sub-project A>
 - [ ] #108 <sub-project B>
 
-<!-- superafk v1 key=idea:add-dark-mode parent= -->
+<!-- superafk v1 key=idea:docs/superpowers/roadmaps/2026-06-19-add-dark-mode.md parent= -->
 ```
 
-**Sub-project**（`superafk:subproject`，sub-issue of Idea）
+### Sub-project issue（`superafk:subproject`，sub-issue of Idea）
 ```markdown
 # 📦 <Sub-project 标题>
-<这块独立范围，来自拆解>
+<这块独立范围，来自 roadmap>
 
 **所属 Idea：** #101 · **进度：** 1/2 spec 完成
 
 ## Specs
 - [ ] #103 <spec X>
 
-<!-- superafk v1 key=subproject:add-dark-mode/ui-theming parent=idea:add-dark-mode -->
+<!-- superafk v1 key=subproject:add-dark-mode/ui-theming parent=idea:docs/superpowers/roadmaps/2026-06-19-add-dark-mode.md -->
 ```
 
-**Spec**（`superafk:spec`，sub-issue of Sub-project）
+### Spec issue（`superafk:spec`，sub-issue of Sub-project）
 ```markdown
 # 📄 Spec：<topic>
 **文件：** `docs/superpowers/specs/2026-06-19-dark-mode-design.md`
@@ -138,7 +156,7 @@ Idea
 <!-- superafk v1 key=spec:docs/superpowers/specs/2026-06-19-dark-mode-design.md parent=subproject:add-dark-mode/ui-theming -->
 ```
 
-**Plan**（`superafk:plan`，sub-issue of Spec）◀ 续传锚点，最 richest
+### Plan issue（`superafk:plan`，sub-issue of Spec）◀ 续传锚点，最 richest
 ```markdown
 # 🔧 Plan：<feature>
 **Spec：** #103 · **分支：** `feat/dark-mode`
@@ -170,15 +188,15 @@ Idea
 ```
 
 **key 取法**（确定性，可重算）：
-- `idea:<slug>`、`subproject:<idea-slug>/<slug>`、`spec:<spec文件路径>`、`plan:<plan文件路径>`
-- spec/plan 的 key 用**文件路径**（稳定）；idea/subproject 用**slug**（首次创建时定，之后复用 marker 里的，不重新派生）。
+- `idea:<roadmap文件路径>`（拆分时，**路径稳定、无漂移**）或 `idea:<slug>`（单 project 时）
+- `subproject:<idea-slug>/<slug>`、`spec:<spec文件路径>`、`plan:<plan文件路径>`
+- spec/plan 与拆分 idea 用**文件路径**做 key（稳定）；单 project 的 idea 及各 subproject 用 **slug**（首次创建即定、之后复用 marker 里的、不重新派生）。
 
 **find_issue(R, level, key)：**
 1. 先查"运行内记忆"（同一次 sync 刚建的，避免索引延迟）。
 2. 否则 `gh issue list --repo R --label superafk:<level> --state all --json number,body`，在结果里**客户端精确子串匹配** `key=<key>`（不用 GitHub 全文搜索，避开路径里 `/ :` 被分词的坑）。
 
 **幂等**由此达成：sync 是 upsert——找到就 edit，没找到才 create，绝不重复建。
-
 **变更检测**：find 时已把 body 拉下来，直接和产物现状比（checkbox/commit），不一样才 edit。
 
 ---
@@ -193,15 +211,16 @@ guide 注入三件事：
 
 | 触发 | 时机 | sync 做什么 |
 |---|---|---|
-| **T1 spec 写好/改动** | brainstorming 产出 `specs/*-design.md` | 建/更新 Spec issue + 惰性补祖先 |
-| **T2 plan 写好** | writing-plans 产出 `plans/*.md` | 建 Plan issue + 祖先，镜像 Task 清单（全未勾） |
+| **T0 idea 范围确定** | brainstorming 定下"拆成多 sub-project"或"只一个 project" | **即时**建 Idea issue；若拆分→（模型先写 `roadmaps/*.md`）建 Idea(链 roadmap) + 各 Sub-project issue |
+| **T1 spec 写好/改动** | brainstorming 产出 `specs/*-design.md` | 建/更新 Spec issue（祖先通常已于 T0 建好；缺则补） |
+| **T2 plan 写好** | writing-plans 产出 `plans/*.md` | 建 Plan issue + 缺失祖先，镜像 Task 清单（全未勾） |
 | **T3 一个 Task 完成** | 执行中某 Task 全部 step done 且 commit | 勾该 task、刷新续传状态 |
 | **T4 plan 全部 Task 完成** | plan 收尾 | 关 Plan issue，向上级联 roll up |
 
 **(3) 纪律**：
 - **同步是主 session 的活**——subagent 是独立 context、不会被注入 guide，所以 task 完成后由**主 session** 在编排回合调 sync，不指望 subagent 自己调。
 - **单向**——只往 issue 写，绝不读 issue 决定接下来干啥。
-- brainstorming 把 idea 拆成 sub-projects 时，**记住 idea 标题 + sub-project 列表**，供 sync 建祖先用。
+- brainstorming **拆解 idea 时**，先把拆解落成 `docs/superpowers/roadmaps/YYYY-MM-DD-<idea>.md`，再调 sync（T0）。单 project 时无需 roadmap，直接 sync 建 Idea issue。
 - **优雅降级**——gh 不可用/未登录/无 GitHub remote 时，**只提示一次**然后静默跳过，**绝不阻断** superpowers 正常工作流。
 
 ---
@@ -209,17 +228,24 @@ guide 注入三件事：
 ## 8. 同步算法：`superafk:sync(target)`
 
 ```
-target = 一个 spec文件 / plan文件 / "task完成" / "plan完成"
+target = "idea范围确定" / 一个 spec文件 / plan文件 / "task完成" / "plan完成"
 
 0. 前置检查：gh 在？已登录？cwd 有 GitHub origin remote？
    任一否 → 提示一次并 return（绝不报错中断开发）
-
 1. R = cwd 的 origin remote（gh repo view）
 
-2. 自顶向下排出 target 的节点链：idea → subproject → spec → plan
-   （各节点算 key + title；idea/subproject 的 title 来自 brainstorming 拆解记忆）
+1.5 若 target = "idea范围确定"：
+    - 拆成多 sub-project：模型已写出 roadmaps/*.md
+        → 建 Idea issue（body 链 roadmap，key=roadmap路径）
+        → 依 roadmap 的 sub-project 列表建各 Sub-project issue（连 sub-issue）
+        → return
+    - 只一个 project：建 Idea issue（无 roadmap，key=slug）→ return
+        （其 Sub-project 等其 spec 落地时于 T1 顺带补建）
 
-3. 惰性建祖先：从 idea 往下逐级
+2. 自顶向下排出 target 的节点链：idea → subproject → spec → plan
+   （各节点算 key + title；idea/subproject 的 title 来自 roadmap 或 brainstorm 记忆）
+
+3. find-or-create 沿链补齐（幂等安全网；祖先多已于 T0 建好）：
    num = find_issue(R, level, key)
    if 没有:
        num = gh issue create --label superafk:<level> --body <模板+marker>
@@ -247,7 +273,7 @@ target = 一个 spec文件 / plan文件 / "task完成" / "plan完成"
 |---|---|
 | **gh 未安装 / 未登录 / 无 GitHub remote** | sync 前置检查拦下，**提示一次**后静默跳过；不阻断 superpowers。hook 本身不依赖 gh（纯静态注入），始终正常。 |
 | **单次 sync 失败（网络/gh 报错）** | 不崩开发流；简短提示。因 upsert 幂等，**下一次触发该产物时自然重试补上**（自愈，无需第二期的对账）。 |
-| **slug 漂移**（idea/subproject 标题改了 → key 变 → 可能孤立旧 issue） | spec/plan 用文件路径 key，稳定；idea/subproject 的 slug 首建即定、之后复用 marker 里的、不重新派生。残余风险记为已知，完整健壮性留第二期。 |
+| **slug 漂移** | 拆分 idea 用 **roadmap 路径** key（稳定，无漂移）；spec/plan 用文件路径 key（稳定）。仅"单 project 的 idea"与"各 subproject"用 slug——首建即定、之后复用 marker 里的、不重新派生。残余风险记为已知，完整健壮性留第二期。 |
 | **原生 sub-issue 不可用**（gh/API 限制） | 降级：body 里写父引用 + 清单替代原生父子；写 plan 前先验证 `gh api graphql addSubIssue` 可用性。 |
 | **issue types 不可用**（个人 repo） | 仅用 label，已是默认。 |
 | **索引延迟**（刚建的 issue 查不到） | 同一次 sync 内用 run_memory 拿号，跨运行才靠 list。 |
@@ -260,17 +286,17 @@ target = 一个 spec文件 / plan文件 / "task完成" / "plan完成"
 ## 10. 插件文件结构（供 writing-plans 用）
 
 ```
-superAFK/
+superAFK/                       # 插件 repo（roadmap/spec/plan 是用户项目的产物，不在这）
   .claude-plugin/
     plugin.json
   hooks/
     hooks.json
-    run-hook.cmd          # 跨平台包装（可借鉴 superpowers）
-    session-start         # 注入 superafk-guide
+    run-hook.cmd                # 跨平台包装（可借鉴 superpowers）
+    session-start               # 注入 superafk-guide
   skills/
     superafk-guide/SKILL.md
     superafk-sync/SKILL.md
-  scripts/                # 可选：key 派生 / marker 解析 / gh 包装（可单测）
+  scripts/                      # 可选：key 派生 / marker 解析 / gh 包装（可单测）
   tests/
   README.md
 ```
@@ -282,8 +308,9 @@ superAFK/
 遵循 superpowers 的 TDD 文化：
 
 - **可单测的纯逻辑**（若抽到 `scripts/` 助手）：key 派生、marker 解析/渲染、节点链推导、body diff 判定。
-- **集成测试**：用一个一次性测试 GitHub repo + `gh`，对 fixture spec/plan 文件跑 sync，断言：
-  - T1/T2 正确建出带 label、连好 sub-issue 的树；
+- **集成测试**：用一个一次性测试 GitHub repo + `gh`，对 fixture roadmap/spec/plan 文件跑 sync，断言：
+  - T0 在范围确定时即建 Idea issue；拆分时落 roadmap 并建好 Sub-project 树、Idea 链接 roadmap；
+  - T1/T2 正确建出带 label、连好 sub-issue 的 Spec/Plan；
   - **幂等**：连跑两次 sync 不产生重复 issue；
   - T3 勾对 task、续传状态更新；
   - T4 关闭 plan 并**级联** roll up 关祖先；
@@ -307,10 +334,11 @@ superAFK/
 ## 13. 成功标准
 
 1. 用户照常用 superpowers 开发，GitHub 上**自动**长出一棵准确的 α issue 树（Idea→Sub-project→Spec→Plan，sub-issue 连好、label 正确）。
-2. 重复同步**幂等**，无重复 issue。
-3. Task 进度、plan 完成、级联关闭都正确反映。
-4. Plan-issue 带"够续传"的状态块（为第二期铺路）。
-5. **全程不修改 superpowers**；gh 不可用时**优雅降级**，绝不破坏 superpowers 工作流。
+2. **Idea issue 在范围确定时即建**（上下文还小）；拆分的 idea 有 `roadmaps/*.md` 记录且被 Idea issue 链接。
+3. 重复同步**幂等**，无重复 issue。
+4. Task 进度、plan 完成、级联关闭都正确反映。
+5. Plan-issue 带"够续传"的状态块（为第二期铺路）。
+6. **全程不修改 superpowers**；gh 不可用时**优雅降级**，绝不破坏 superpowers 工作流。
 
 ---
 
@@ -318,4 +346,4 @@ superAFK/
 
 - **软触发可靠性**：与 superpowers 同源的软性机制——模型可能漏触发某次 sync。第一期无对账兜底（那是第二期）；靠 upsert 在下次触发时自愈。
 - **`gh api graphql addSubIssue` 可用性**：α 全树依赖程序化连 sub-issue，写 plan 时须先验证，备降级方案（§9）。
-- **slug 漂移**（§9）。
+- **slug 漂移**：已大幅缓解（拆分 idea 用 roadmap 路径 key）；残余仅限单 project idea 与 subproject 的 slug（§9）。
