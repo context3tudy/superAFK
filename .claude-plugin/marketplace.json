@@ -1,0 +1,18 @@
+{
+  "name": "superafk-marketplace",
+  "description": "Marketplace for the superAFK plugin — track superpowers development progress as GitHub issues.",
+  "owner": {
+    "name": "gingerly"
+  },
+  "plugins": [
+    {
+      "name": "superafk",
+      "description": "Track superpowers development progress as a single GitHub idea-issue, without modifying superpowers.",
+      "version": "0.1.0",
+      "source": "./",
+      "author": {
+        "name": "gingerly"
+      }
+    }
+  ]
+}
