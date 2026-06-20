@@ -25,7 +25,7 @@ superAFK installs as a Claude Code plugin via its own marketplace (this repo is 
 Run these slash commands in Claude Code — in the project you want tracked, or anywhere for user scope:
 
 ```text
-/plugin marketplace add /path/to/superAFK          # or a git URL once pushed
+/plugin marketplace add context3tudy/superAFK      # GitHub (owner/repo); a local path also works for dev
 /plugin install superafk@superafk-marketplace --scope project
 /reload-plugins
 ```
@@ -39,8 +39,9 @@ so it won't activate in the session where you installed it.
 
 Or run `/plugin`, open the **Discover** tab, pick `superafk`, and choose the scope in the UI.
 
-The marketplace is registered per machine when added from a local path; after you push this repo to GitHub,
-`/plugin marketplace add <git-url>` lets you install (and share) it from the remote.
+Installed from GitHub, `/plugin marketplace update superafk-marketplace` does a `git pull` to fetch updates
+(no pinned `version`, so each pushed commit is picked up). A local path — `/plugin marketplace add /path/to/superAFK` —
+also works for local development, but is registered per machine.
 
 **Verify:** a new session's context should contain the injected `# superAFK guide` block (the same way superpowers
 injects its own guide). It needs superpowers installed, `gh` authenticated, and a GitHub `origin` in the tracked
