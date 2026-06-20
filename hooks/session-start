@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# SessionStart hook: inject the superafk-guide skill + this session's id as additionalContext.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+payload="$(cat || true)"
+session_id="$(printf '%s' "$payload" | sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
+
+guide="$(cat "${PLUGIN_ROOT}/skills/superafk-guide/SKILL.md" 2>/dev/null || echo "Error reading superafk-guide skill")"
+
+escape_for_json() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\r'/\\r}"
+  s="${s//$'\t'/\\t}"
+  printf '%s' "$s"
+}
+
+guide_escaped="$(escape_for_json "$guide")"
+id_escaped="$(escape_for_json "$session_id")"
+
+context="<EXTREMELY_IMPORTANT>\nsuperAFK is active. Your current session id is: ${id_escaped}\n\nBelow is your 'superafk-guide' skill. Follow it.\n\n${guide_escaped}\n</EXTREMELY_IMPORTANT>"
+
+printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' "$context"
+exit 0
