@@ -996,7 +996,8 @@ repo="${SUPERAFK_TEST_REPO:?set SUPERAFK_TEST_REPO=owner/name}"
 title="superAFK integration $(date +%s)"
 
 num="$(GH_REPO="$repo" bash "$S/gh.sh" create-idea "$title" "idea: prove the loop")"
-assert_contains "$num" "" "created issue number: $num"
+case "$num" in ''|*[!0-9]*) numok=fail;; *) numok=pass;; esac
+assert_eq "pass" "$numok" "create-idea returned a numeric issue number ($num)"
 GH_REPO="$repo" bash "$S/gh.sh" comment "$num" "superAFK: PR #1 — https://example/pr/1"
 GH_REPO="$repo" bash "$S/gh.sh" add-finished "$num"
 state="$(GH_REPO="$repo" gh issue view "$num" --json state -q .state)"
