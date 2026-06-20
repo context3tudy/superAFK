@@ -740,243 +740,228 @@ git commit -m "feat: SessionStart hook injects guide + session id"
 
 ---
 
-### Task 7: `superafk-guide` skill (injected rules)
+### Task 7: `superafk-guide` skill (RED→GREEN per writing-skills)
 
 **Files:**
 - Modify: `skills/superafk-guide/SKILL.md` (replace the Task 6 placeholder)
-- Create: `tests/guide_test.sh`
+- Create: `tests/skill_lint_test.sh`
 
 **Interfaces:**
-- Produces: the rules text injected at SessionStart. Must name the 3 touchpoints, the bind/lock rule, the front-matter rule, the post-PR takeover trigger, the degradation rule, and the single-direction discipline. It must point the model at the `superafk` worker skill.
+- Produces: the rules injected at SessionStart. MUST be token-lean (injected EVERY session — budget <200 words), `description` = triggering conditions only (NO workflow summary), name the 3 touchpoints + degradation + single-direction, and point at the `superafk` worker.
 
-- [ ] **Step 1: Write the failing structural test**
+**Why this shape (superpowers:writing-skills):** a skill's real test is a subagent scenario (Iron Law: watch the baseline fail first), NOT a phrase-grep. `tests/skill_lint_test.sh` is only the mechanical gate (frontmatter / "Use when" description / word budget). Steps 1 and 6 are the RED→GREEN scenarios — the actual test.
 
-Create `tests/guide_test.sh`:
+- [ ] **Step 1 (RED): baseline — run the scenarios WITHOUT the guide, document the failure**
+
+Dispatch a fresh subagent (superpowers:dispatching-parallel-agents) for EACH scenario, with NO superAFK context. Record the verbatim response.
+
+Scenario A (touchpoint 1 — bind at start):
+> You're about to help build a new feature with the superpowers workflow. The user says: "let's add dark mode." What are your first 1–3 actions? Be specific.
+
+Scenario B (touchpoint 3 — post-PR):
+> You just finished a feature with superpowers' finishing-a-development-branch, which opened PR #7. The work is tracked in GitHub issue #42. What do you do now? List your next actions.
+
+Expected baseline (RED): A → jumps straight into brainstorming, creates/binds NO issue. B → treats it as done; does NOT link the PR to the issue, no completeness check, no handoff. Write these down — they are the failures the guide must fix.
+
+- [ ] **Step 2: Write the mechanical lint (deterministic gate)**
+
+Create `tests/skill_lint_test.sh`:
 ```bash
 #!/usr/bin/env bash
 set -u
 DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$DIR/lib/assert.sh"
-G="$(cat "$DIR/../skills/superafk-guide/SKILL.md")"
+cd "$DIR/.."
 
-assert_contains "$G" "name: superafk-guide" "has skill frontmatter name"
-assert_contains "$G" "superafk-issue:" "states the front-matter stamp rule"
-assert_contains "$G" "finishing-a-development-branch" "names the PR touchpoint"
-assert_contains "$G" "lock" "states the lock rule"
-assert_contains "$G" "superafk skill" "points to the worker skill"
-case "$G" in *PLACEHOLDER*) ph=1;; *) ph=0;; esac
-assert_eq "0" "$ph" "placeholder replaced"
+lint_skill() {   # <file> <word-budget>
+  local md="$1" budget="$2" fm name desc words charset desc_ok ph words_ok
+  fm="$(awk 'NR==1&&$0=="---"{f=1;next} f&&$0=="---"{exit} f{print}' "$md")"
+  name="$(printf '%s\n' "$fm" | sed -n 's/^name:[[:space:]]*//p' | head -1)"
+  desc="$(printf '%s\n' "$fm" | sed -n 's/^description:[[:space:]]*//p' | head -1)"
+  words="$(wc -w < "$md" | tr -d ' ')"
+  charset=pass; case "$name" in ""|*[!A-Za-z0-9-]*) charset=fail;; esac
+  assert_eq "pass" "$charset" "$md: name charset (letters/numbers/hyphens)"
+  desc_ok=fail; case "$desc" in "Use when"*) desc_ok=pass;; esac
+  assert_eq "pass" "$desc_ok" "$md: description starts with 'Use when'"
+  ph=pass; grep -q PLACEHOLDER "$md" && ph=fail
+  assert_eq "pass" "$ph" "$md: no PLACEHOLDER"
+  words_ok=pass; [ "$words" -le "$budget" ] || words_ok=fail
+  assert_eq "pass" "$words_ok" "$md: <= $budget words (got $words)"
+}
+
+lint_skill skills/superafk-guide/SKILL.md 200
+g="$(cat skills/superafk-guide/SKILL.md)"
+assert_contains "$g" "finishing-a-development-branch" "guide: names the PR touchpoint"
+assert_contains "$g" "superafk-issue" "guide: states the stamp rule"
+
+if [ -f skills/superafk/SKILL.md ]; then
+  lint_skill skills/superafk/SKILL.md 500
+  w="$(cat skills/superafk/SKILL.md)"
+  assert_contains "$w" "preflight" "worker: runs preflight"
+  ck=pass; case "$w" in *"Closes #"*|*"Fixes #"*|*"Resolves #"*) ck=fail;; esac
+  assert_eq "pass" "$ck" "worker: no closing keyword"
+fi
 
 assert_report || exit 1
 ```
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [ ] **Step 3: Run it to confirm it fails**
 
 Run: `bash tests/run.sh`
-Expected: FAIL — file still contains `PLACEHOLDER` and lacks the required phrases.
+Expected: FAIL — the guide still has the Task 6 `PLACEHOLDER`, and the placeholder description does not start with "Use when".
 
-- [ ] **Step 3: Write the real guide**
+- [ ] **Step 4: Write the lean guide (trigger-only description, <200 words)**
 
 Overwrite `skills/superafk-guide/SKILL.md`:
 ```markdown
 ---
 name: superafk-guide
-description: How superAFK rides alongside superpowers — bind an idea-issue, stamp files, and run the post-PR takeover. Injected at session start.
+description: Use when starting a Claude Code session where superpowers may be used — establishes how superAFK keeps the idea-issue in sync.
 ---
 
 # superAFK guide
 
-superAFK mirrors superpowers progress into ONE GitHub issue per idea (the issue
-number is the idea's identity). You touch superpowers at exactly THREE points and
-nothing else. All real work is in the `superafk` skill — invoke it when a rule below fires.
+superAFK mirrors superpowers progress into ONE GitHub issue per idea (issue number = identity). Write-side only: never read the issue to decide what to build. Invoke the **superafk** skill at these three moments and do nothing else:
 
-## Direction
-Write-side only: superpowers → issue. NEVER read the issue to decide what to build
-(that is a future phase). The only read is checking the lock at bind time.
+1. **Before brainstorming:** bind this session to an idea-issue — create it for a new idea, or take the one the user names — and claim the lock.
+2. **When a spec/plan file is written:** stamp it with `superafk-issue: <number>`.
+3. **After `finishing-a-development-branch` opens a PR:** run the takeover — link the PR (a comment, never a closing keyword), judge whether the idea is done, mark `finished` (label only; never close the issue) or leave a handoff comment, then release the lock.
 
-## The 3 touchpoints
+If `gh` is missing/unauthenticated or there is no GitHub origin, stay silent and do nothing — never block superpowers.
 
-1. **Before brainstorming — bind an idea-issue.** A session must be bound to one idea
-   issue before design work. Invoke `superafk` to: create the issue for a new idea
-   (or take the existing issue the user names), then claim the lock with THIS session id
-   (injected above). If another session already holds the lock, warn and do not double-work.
-
-2. **When a spec/plan file is written — stamp it.** Every file under
-   `docs/superpowers/specs/` and `docs/superpowers/plans/` gets front-matter
-   `superafk-issue: <number>` for the bound issue. Invoke `superafk` to stamp it.
-
-3. **After `finishing-a-development-branch` opens a PR — run the takeover.** Invoke
-   `superafk` to: link the PR on the issue (a comment, NEVER a closing keyword),
-   judge whether the whole idea is done, mark `finished` (label; do NOT close) or leave
-   a handoff comment, then release the lock.
-
-## Degradation
-If `gh` is unavailable / not authenticated / there is no GitHub origin remote, do nothing
-and stay silent after one notice. superAFK must NEVER block or break the superpowers workflow.
-
-## Worker
-The superafk skill contains the exact steps and scripts — invoke the superafk skill at each touchpoint.
+**REQUIRED SUB-SKILL:** Use the superafk skill for the exact steps.
 ```
 
-- [ ] **Step 4: Run tests to confirm pass**
+- [ ] **Step 5: Run the suite — lint passes, hook still green**
 
 Run: `bash tests/run.sh`
-Expected: `guide_test.sh` asserts `ok`; `hook_test.sh` still passes (now injects real guide text). `ALL TESTS PASSED`.
+Expected: `skill_lint_test.sh` all `ok` (guide within 200 words, description starts with "Use when", no placeholder); `hook_test.sh` still passes (injects the real guide). `ALL TESTS PASSED`.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6 (GREEN): re-run the scenarios WITH the guide; verify compliance**
+
+For each scenario from Step 1, dispatch a fresh subagent whose context BEGINS with the full guide text (simulating the SessionStart injection), then the scenario prompt.
+
+Pass criteria:
+- Scenario A → the agent binds/creates the idea-issue via the superafk skill BEFORE brainstorming.
+- Scenario B → the agent invokes the superafk skill to run the post-PR takeover (link PR, completeness check, finished/handoff, release lock).
+
+- [ ] **Step 7 (REFACTOR): close loopholes**
+
+If a scenario still fails or the agent rationalizes (e.g., "the PR is open, I'm done"), add ONE explicit counter line to the guide addressing that exact rationalization, then re-run Step 6 until both pass. Keep it under 200 words (`bash tests/run.sh` must stay green).
+
+- [ ] **Step 8: Commit**
 
 ```bash
-git add skills/superafk-guide/SKILL.md tests/guide_test.sh
-git commit -m "feat: superafk-guide skill (3 touchpoints + degradation rules)"
+git add skills/superafk-guide/SKILL.md tests/skill_lint_test.sh
+git commit -m "feat: superafk-guide skill (lean, trigger-only description, scenario-tested)"
 ```
 
 ---
 
-### Task 8: `superafk` worker skill
+### Task 8: `superafk` worker skill (RED→GREEN per writing-skills)
 
 **Files:**
 - Create: `skills/superafk/SKILL.md`
-- Create: `tests/worker_test.sh`
 
 **Interfaces:**
 - Consumes: `scripts/frontmatter.sh`, `scripts/scan.sh`, `scripts/issue_body.sh`, `scripts/gh.sh`, and the session id injected by the hook.
-- Produces: the worker procedure for all 3 touchpoints, written so the executing model runs the scripts in the right order.
+- Produces: the worker procedure for all 3 touchpoints. `description` = triggers only; body <500 words; NEVER uses a closing keyword or `gh issue close`. Linted by `tests/skill_lint_test.sh` (created in Task 7), which now also covers this file.
 
-- [ ] **Step 1: Write the failing structural test**
+- [ ] **Step 1 (RED): baseline — run the takeover WITHOUT the worker, document the footguns**
 
-Create `tests/worker_test.sh`:
-```bash
-#!/usr/bin/env bash
-set -u
-DIR="$(cd "$(dirname "$0")" && pwd)"
-. "$DIR/lib/assert.sh"
-W="$(cat "$DIR/../skills/superafk/SKILL.md")"
+Dispatch a fresh subagent whose context has the `superafk-guide` (so it knows a takeover is due) but NOT the worker skill:
+> [superafk-guide is active in your context.] You opened PR #7 for idea issue #42. The plugin's scripts are in `./scripts`. Run the superAFK post-PR takeover — show the EXACT shell commands you would run, in order.
 
-# Assert distinctive tokens that appear contiguously (scripts are invoked as
-# `"$S/gh.sh" preflight`, so a quote sits between the name and the subcommand —
-# assert the subcommand/script tokens, not "gh.sh preflight").
-assert_contains "$W" "name: superafk" "has skill frontmatter name"
-assert_contains "$W" "preflight" "runs preflight (degradation gate)"
-assert_contains "$W" "create-idea" "creates the idea issue"
-assert_contains "$W" "SESSION_ID" "claims the lock with the session id"
-assert_contains "$W" "issue_body.sh" "uses the lock helper"
-assert_contains "$W" "set-issue" "stamps files via front-matter"
-assert_contains "$W" "scan.sh" "scans files for the completion check"
-assert_contains "$W" "comment" "links PR / writes handoff via comment"
-assert_contains "$W" "add-finished" "marks finished via label"
-assert_contains "$W" "clear" "releases the lock"
-case "$W" in *"--add-label"*|*"Closes #"*|*"Fixes #"*|*"Resolves #"*) bad=1;; *) bad=0;; esac
-assert_eq "0" "$bad" "no raw closing-keyword / raw label edit in worker"
+Expected baseline (RED): it improvises — typically `gh issue close 42` and/or a `Closes #42` reference, and often skips the file scan or the lock release. Record the exact commands. Those footguns (auto-close, closing keyword) are precisely what the worker must prevent.
 
-assert_report || exit 1
-```
-
-- [ ] **Step 2: Run it to confirm it fails**
-
-Run: `bash tests/run.sh`
-Expected: FAIL — `skills/superafk/SKILL.md` missing.
-
-- [ ] **Step 3: Write the worker skill**
+- [ ] **Step 2: Write the worker skill (trigger-only description)**
 
 Create `skills/superafk/SKILL.md`:
 ````markdown
 ---
 name: superafk
-description: superAFK worker — bind an idea-issue, stamp spec/plan files, and run the post-PR takeover. Invoke from the superafk-guide touchpoints.
+description: Use when binding a session to its idea-issue before brainstorming, when a spec or plan file has just been written, or just after finishing-a-development-branch opens a PR.
 ---
 
 # superafk worker
 
-All commands assume the plugin's `scripts/` dir. Let `S` be that directory.
-ALWAYS run the degradation gate first; if it exits non-zero, STOP silently:
-
+Let `S` be the plugin's `scripts/` dir. ALWAYS run the degradation gate first; if it exits non-zero, STOP silently:
 ```bash
 bash "$S/gh.sh" preflight || exit 0
 bash "$S/gh.sh" ensure-labels
 ```
-
 `SESSION_ID` is the session id injected by the hook ("Your current session id is: ...").
 
 ## Touchpoint 1 — bind an idea-issue (before brainstorming)
-
-**New idea:** create the issue, then claim the lock.
+**New idea** — create it, then claim the lock:
 ```bash
 ISSUE="$(bash "$S/gh.sh" create-idea "<idea title>" "<idea original text>")"
 BODY="$(bash "$S/gh.sh" body "$ISSUE")"
 printf '%s' "$BODY" | bash "$S/issue_body.sh" set "$SESSION_ID" \
-  | { read_all=$(cat); bash "$S/gh.sh" set-body "$ISSUE" "$read_all"; }
+  | { c=$(cat); bash "$S/gh.sh" set-body "$ISSUE" "$c"; }
 ```
-Remember `ISSUE` for this session.
-
-**Existing idea** (user names issue N): read the lock first.
-```bash
-BODY="$(bash "$S/gh.sh" body "$N")"
-HOLDER="$(printf '%s' "$BODY" | bash "$S/issue_body.sh" read)"
-```
-- If `HOLDER` is empty → claim it (set to `SESSION_ID`, `set-body`).
-- If `HOLDER` equals `SESSION_ID` → already ours, proceed.
-- Else → WARN the user that another session holds this idea; do not double-work.
+Remember `ISSUE` for this session. **Existing idea** (user names issue N): read the lock — if empty, claim it; if it equals `SESSION_ID`, proceed; otherwise WARN that another session holds it and do not double-work.
 
 ## Touchpoint 2 — stamp each spec/plan file
-
 After any file is written under `docs/superpowers/specs/` or `docs/superpowers/plans/`:
 ```bash
 bash "$S/frontmatter.sh" set-issue "<that file>" "$ISSUE"
 ```
 
-## Touchpoint 3 — takeover after a PR is opened
-
-Run ONLY when finishing-a-development-branch opened a PR. Let `PR_URL`/`PR_NUM` be that PR.
-
-1. Link the PR (comment — NEVER a closing keyword):
+## Touchpoint 3 — takeover after a PR opens (PR_NUM / PR_URL)
+1. Link the PR — a comment, NEVER a closing keyword, and NEVER `gh issue close`:
 ```bash
 bash "$S/gh.sh" comment "$ISSUE" "superAFK: PR #$PR_NUM — $PR_URL"
 ```
-2. Completion check (LLM judgment): read the idea's original text and the realized files.
+2. Completeness check — read the idea text and the realized files, then judge honestly:
 ```bash
 IDEA="$(bash "$S/gh.sh" body "$ISSUE")"
 FILES="$(bash "$S/scan.sh" "$ISSUE")"
 ```
-   Read `IDEA` and each file in `FILES`. Decide: do the landed specs/plans cover the
-   WHOLE idea? This is your judgment — be honest; partial work is "unfinished".
-3a. If finished:
+Do the landed specs/plans cover the WHOLE idea? Partial work is "unfinished".
+3a. Finished → label only (a human closes the issue):
 ```bash
-bash "$S/gh.sh" add-finished "$ISSUE"   # label only; do NOT close — a human closes
+bash "$S/gh.sh" add-finished "$ISSUE"
 ```
-3b. If unfinished, append a handoff COMMENT (history; humans can add their own too):
+3b. Unfinished → append a handoff comment:
 ```bash
-bash "$S/gh.sh" comment "$ISSUE" "$(cat <<EOF
-🤖 superAFK handoff
-- This PR: #$PR_NUM
-- Landed: <list the files in FILES>
-- Still missing (vs the idea): <what is not yet specced/planned/built>
-- Suggested next step: <the next spec/plan to write>
-EOF
-)"
+bash "$S/gh.sh" comment "$ISSUE" "superAFK handoff — PR #$PR_NUM. Landed: <files>. Missing vs idea: <gap>. Next: <next spec/plan>."
 ```
 4. Release the lock:
 ```bash
 BODY="$(bash "$S/gh.sh" body "$ISSUE")"
 printf '%s' "$BODY" | bash "$S/issue_body.sh" clear \
-  | { cleared=$(cat); bash "$S/gh.sh" set-body "$ISSUE" "$cleared"; }
+  | { c=$(cat); bash "$S/gh.sh" set-body "$ISSUE" "$c"; }
 ```
-5. Stop. (Reading the handoff to auto-resume is a future phase — not now.)
+Then stop. Reading the handoff to auto-resume is a future phase.
 
 ## Privacy
-Before the FIRST issue is created in a repo, check `bash "$S/gh.sh" visibility`. If the repo
-is `public`, tell the user the idea text and handoffs will be world-readable and confirm once.
+Before the FIRST issue in a repo, run `bash "$S/gh.sh" visibility`; if `public`, warn that idea text and handoffs become world-readable and confirm once.
 ````
 
-- [ ] **Step 4: Run tests to confirm pass**
+- [ ] **Step 3: Run the mechanical lint**
 
 Run: `bash tests/run.sh`
-Expected: `worker_test.sh` asserts `ok`, `ALL TESTS PASSED`.
+Expected: `skill_lint_test.sh` now also lints the worker — `ok` for: description starts with "Use when", `<= 500 words`, runs `preflight`, no closing keyword. `ALL TESTS PASSED`.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4 (GREEN): re-run the takeover scenario WITH the worker skill**
+
+Dispatch a fresh subagent whose context includes the worker skill, with the SAME prompt as Step 1.
+
+Pass criteria (ALL must hold):
+- Commands follow the worker order: `preflight` → `gh.sh comment` (PR link) → `scan.sh` → completeness judgment → `add-finished` OR handoff comment → `issue_body.sh clear`.
+- Contains NO `gh issue close` and NO `Closes/Fixes/Resolves #`.
+- Includes BOTH the file scan and the lock release.
+
+- [ ] **Step 5 (REFACTOR): close loopholes**
+
+If the agent still reaches for `gh issue close` or a closing keyword, or skips the scan / lock-release, add ONE explicit counter to the relevant worker step (e.g., "NEVER `gh issue close` — a human closes") and re-run Step 4 until it complies. Keep the body <500 words.
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add skills/superafk/SKILL.md tests/worker_test.sh
-git commit -m "feat: superafk worker skill (bind / stamp / post-PR takeover)"
+git add skills/superafk/SKILL.md
+git commit -m "feat: superafk worker skill (trigger-only description, scenario-tested, no auto-close)"
 ```
 
 ---
@@ -1076,7 +1061,7 @@ git commit -m "docs: README + opt-in gh integration scenario"
 
 ## Notes for the implementer
 
-- **Run `bash tests/run.sh` after every task** — it is the single gate.
-- The two skills (`superafk-guide`, `superafk`) are prose executed by the model; their tests are structural (required phrases must be present) because there is no logic to unit-test there. The logic lives in `scripts/*.sh`, which are unit-tested.
+- **Run `bash tests/run.sh` after every task** — it is the mechanical gate (scripts + the skill lint). Tasks 7–8 ALSO require their RED→GREEN subagent scenarios (Steps 1 & 6 / Steps 1 & 4); those are agentic and not part of `run.sh`.
+- The two skills are prose executed by the model. Per superpowers:writing-skills they are tested by **subagent scenarios** (baseline fails first, then comply-with-skill, then refactor); `tests/skill_lint_test.sh` enforces only the mechanical properties (frontmatter, "Use when" description, <word budget, no placeholder). The deterministic logic lives in `scripts/*.sh`, which are unit-tested.
 - Do not add a local state file, do not use closing keywords, do not auto-close issues, do not add other-platform hooks — all are explicit Phase-1 constraints above.
 - `gh.sh` calls real GitHub; everything that touches it in unit tests goes through `tests/fixtures/bin/gh`.
