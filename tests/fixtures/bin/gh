@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Mock gh for unit tests. Logs args to $GH_MOCK_LOG and prints canned output.
+echo "$*" >> "${GH_MOCK_LOG:-/dev/null}"
+case "$1 $2" in
+  "issue create") echo "https://github.com/o/r/issues/42" ;;
+  "issue view")   echo "idea body from mock" ;;   # gh issue view N --json body -q .body
+  "repo view")    echo "private" ;;               # gh repo view --json visibility -q .visibility
+  "label create") : ;;
+  "issue comment") : ;;
+  "issue edit")   : ;;
+  "auth status")  : ;;
+  *) : ;;
+esac
+exit 0
