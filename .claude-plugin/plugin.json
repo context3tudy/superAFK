@@ -1,0 +1,8 @@
+{
+  "name": "superafk",
+  "description": "Track superpowers development progress as a single GitHub idea-issue, without modifying superpowers.",
+  "version": "0.1.0",
+  "author": { "name": "gingerly" },
+  "license": "MIT",
+  "keywords": ["superpowers", "github", "issues", "progress", "tracking"]
+}
