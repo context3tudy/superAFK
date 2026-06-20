@@ -25,4 +25,10 @@ bash "$FM" set-issue "$tmp/b.md" 7
 assert_eq "7" "$(bash "$FM" get-issue "$tmp/b.md")" "insert into existing block"
 assert_contains "$(cat "$tmp/b.md")" "title: X" "existing front-matter key kept"
 
+# 5) trailing whitespace on closing fence is tolerated
+printf -- '---\ntitle: X\n--- \n# Body\n' > "$tmp/c.md"
+bash "$FM" set-issue "$tmp/c.md" 9
+assert_eq "9" "$(bash "$FM" get-issue "$tmp/c.md")" "trailing space on closing fence: set then get"
+assert_eq "1" "$(grep -c '^superafk-issue:' "$tmp/c.md")" "trailing space on closing fence: exactly one superafk-issue line"
+
 assert_report || exit 1

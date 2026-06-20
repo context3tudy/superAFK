@@ -27,4 +27,12 @@ assert_contains "$log" "issue comment" "comment calls gh issue comment"
 case "$log" in *Closes*|*Fixes*|*Resolves*) bad=1;; *) bad=0;; esac
 assert_eq "0" "$bad" "comment carries no closing keyword"
 
+# add-finished must add the finished label and must NOT close the issue
+: > "$GH_MOCK_LOG"
+bash "$GH" add-finished 42
+log="$(cat "$GH_MOCK_LOG")"
+assert_contains "$log" "--add-label finished" "add-finished adds finished label"
+case "$log" in *close*|*--state*) bad=1;; *) bad=0;; esac
+assert_eq "0" "$bad" "add-finished never closes the issue"
+
 assert_report || exit 1

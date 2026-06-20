@@ -9,9 +9,9 @@ case "$cmd" in
   get-issue)
     [ -f "$file" ] || exit 0
     awk '
-      NR==1 && $0!="---" { exit }
+      NR==1 && !/^---[[:space:]]*$/ { exit }
       NR==1 { infm=1; next }
-      infm==1 && $0=="---" { exit }
+      infm==1 && /^---[[:space:]]*$/ { exit }
       infm==1 && /^superafk-issue:[[:space:]]*/ {
         line=$0; sub(/^superafk-issue:[[:space:]]*/, "", line); print line; exit
       }
@@ -22,13 +22,13 @@ case "$cmd" in
     tmp="$(mktemp)"
     first=""
     [ -f "$file" ] && IFS= read -r first < "$file" || true
-    if [ "$first" = "---" ]; then
+    if [[ "$first" =~ ^---[[:space:]]*$ ]]; then
       awk -v num="$num" '
         BEGIN { infm=0; done=0 }
-        NR==1 && $0=="---" { print; infm=1; next }
-        infm==1 && $0=="---" {
+        NR==1 && /^---[[:space:]]*$/ { print "---"; infm=1; next }
+        infm==1 && /^---[[:space:]]*$/ {
           if (done==0) { print "superafk-issue: " num; done=1 }
-          print; infm=0; next
+          print "---"; infm=0; next
         }
         infm==1 && /^superafk-issue:/ { print "superafk-issue: " num; done=1; next }
         { print }

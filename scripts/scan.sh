@@ -9,5 +9,6 @@ here="$(cd "$(dirname "$0")" && pwd)"
 shopt -s nullglob
 for f in "$root"/docs/superpowers/specs/*.md "$root"/docs/superpowers/plans/*.md; do
   v="$(bash "$here/frontmatter.sh" get-issue "$f")"
-  [ "$v" = "$num" ] && printf '%s\n' "$f"
+  [ "$v" = "$num" ] && printf '%s\n' "$f" || true
 done
+exit 0
