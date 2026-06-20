@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -u
+DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$DIR/lib/assert.sh"
+FM="$DIR/../scripts/frontmatter.sh"
+SCAN="$DIR/../scripts/scan.sh"
+root="$(mktemp -d)"; trap 'rm -rf "$root"' EXIT
+mkdir -p "$root/docs/superpowers/specs" "$root/docs/superpowers/plans"
+
+printf '# spec a\n' > "$root/docs/superpowers/specs/a-design.md"
+bash "$FM" set-issue "$root/docs/superpowers/specs/a-design.md" 5
+printf '# plan a\n' > "$root/docs/superpowers/plans/a.md"
+bash "$FM" set-issue "$root/docs/superpowers/plans/a.md" 5
+printf '# spec b\n' > "$root/docs/superpowers/specs/b-design.md"
+bash "$FM" set-issue "$root/docs/superpowers/specs/b-design.md" 6
+
+out="$(cd "$root" && bash "$SCAN" 5 | sort)"
+assert_contains "$out" "docs/superpowers/specs/a-design.md" "scan finds spec for issue 5"
+assert_contains "$out" "docs/superpowers/plans/a.md" "scan finds plan for issue 5"
+case "$out" in *b-design.md*) found_b=1;; *) found_b=0;; esac
+assert_eq "0" "$found_b" "scan excludes issue 6 file"
+
+# empty when dirs missing
+empty_root="$(mktemp -d)"
+assert_eq "" "$(cd "$empty_root" && bash "$SCAN" 5)" "no docs dir -> empty"
+rm -rf "$empty_root"
+
+assert_report || exit 1
