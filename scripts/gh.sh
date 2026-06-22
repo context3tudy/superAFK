@@ -14,6 +14,7 @@ case "$cmd" in
   ensure-labels)
     gh label create superafk --description "superAFK idea tracker" --color 1f6feb --force >/dev/null
     gh label create finished --description "superAFK: idea complete (close manually)" --color 0e8a16 --force >/dev/null
+    gh label create superafk-auto --description "superAFK: autonomous after design approval" --color 8250df --force >/dev/null
     ;;
   visibility)
     gh repo view --json visibility -q .visibility
@@ -32,11 +33,21 @@ case "$cmd" in
   add-finished)
     gh issue edit "${1:?n}" --add-label finished >/dev/null
     ;;
+  add-auto)
+    gh issue edit "${1:?n}" --add-label superafk-auto >/dev/null
+    ;;
+  has-auto)
+    if gh issue view "${1:?n}" --json labels -q '.labels[].name' | grep -qx superafk-auto; then
+      echo auto
+    else
+      echo manual
+    fi
+    ;;
   set-body)
     gh issue edit "${1:?n}" --body "${2:?body}" >/dev/null
     ;;
   *)
-    echo "usage: gh.sh {preflight|ensure-labels|visibility|create-idea|body|comment|add-finished|set-body}" >&2
+    echo "usage: gh.sh {preflight|ensure-labels|visibility|create-idea|body|comment|add-finished|add-auto|has-auto|set-body}" >&2
     exit 2
     ;;
 esac
