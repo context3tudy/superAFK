@@ -24,6 +24,8 @@ lint_skill skills/superafk-guide/SKILL.md 200
 g="$(cat skills/superafk-guide/SKILL.md)"
 assert_contains "$g" "finishing-a-development-branch" "guide: names the PR touchpoint"
 assert_contains "$g" "superafk-issue" "guide: states the stamp rule"
+assert_contains "$g" "superafk-auto" "guide: names the autonomy label"
+assert_contains "$g" "any outcome" "guide: takeover is outcome-agnostic"
 
 if [ -f skills/superafk/SKILL.md ]; then
   lint_skill skills/superafk/SKILL.md 500
