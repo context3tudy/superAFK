@@ -35,4 +35,21 @@ assert_contains "$log" "--add-label finished" "add-finished adds finished label"
 case "$log" in *close*|*--state*) bad=1;; *) bad=0;; esac
 assert_eq "0" "$bad" "add-finished never closes the issue"
 
+# ensure-labels also creates the superafk-auto autonomy label
+: > "$GH_MOCK_LOG"
+bash "$GH" ensure-labels
+assert_contains "$(cat "$GH_MOCK_LOG")" "label create superafk-auto" "ensure-labels creates superafk-auto"
+
+# add-auto adds the autonomy label and never closes the issue
+: > "$GH_MOCK_LOG"
+bash "$GH" add-auto 42
+log="$(cat "$GH_MOCK_LOG")"
+assert_contains "$log" "--add-label superafk-auto" "add-auto adds superafk-auto label"
+case "$log" in *close*|*--state*) bad=1;; *) bad=0;; esac
+assert_eq "0" "$bad" "add-auto never closes the issue"
+
+# has-auto reads the label: manual when absent, auto when present
+assert_eq "manual" "$(bash "$GH" has-auto 42)" "has-auto returns manual when label absent"
+assert_eq "auto" "$(GH_MOCK_LABELS='superafk superafk-auto' bash "$GH" has-auto 42)" "has-auto returns auto when label present"
+
 assert_report || exit 1
