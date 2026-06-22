@@ -1,6 +1,6 @@
 ---
 name: superafk
-description: Use when binding a session to its idea-issue before brainstorming, when a spec or plan file has just been written, or just after finishing-a-development-branch opens a PR.
+description: Use when binding a session to its idea-issue before brainstorming, when a spec or plan file has just been written, or just after finishing-a-development-branch concludes (any outcome).
 ---
 
 # superafk worker
@@ -22,30 +22,35 @@ printf '%s' "$BODY" | bash "$S/issue_body.sh" set "$SESSION_ID" \
 ```
 Remember `ISSUE` for this session. **Existing idea** (user names issue N): read the lock — if empty, claim it; if it equals `SESSION_ID`, proceed; otherwise WARN that another session holds it and do not double-work.
 
+**Autonomy (opt-in):** if the user asks to run this idea autonomously, `bash "$S/gh.sh" add-auto "$ISSUE"`. Either way read it: `AUTO="$(bash "$S/gh.sh" has-auto "$ISSUE")"`. If `AUTO` equals `auto`, the user has pre-authorized — after the design doc is approved, run writing-plans → execution → code-review → finishing WITHOUT pausing for approval; at finishing choose "open a PR" (a human still merges).
+
 ## Touchpoint 2 — stamp each spec/plan file
 After any file is written under `docs/superpowers/specs/` or `docs/superpowers/plans/`:
 ```bash
 bash "$S/frontmatter.sh" set-issue "<that file>" "$ISSUE"
 ```
 
-## Touchpoint 3 — takeover after a PR opens (PR_NUM / PR_URL)
-1. Link the PR — a comment, NEVER a closing keyword, and NEVER `gh issue close`:
+## Touchpoint 3 — takeover after finishing-a-development-branch concludes (ANY outcome)
+Trigger the moment finishing concludes, whatever the outcome (PR / merge / keep / discard).
+1. Link the outcome — a comment, NEVER a closing keyword, and NEVER `gh issue close`:
 ```bash
-bash "$S/gh.sh" comment "$ISSUE" "superAFK: PR #$PR_NUM — $PR_URL"
+bash "$S/gh.sh" comment "$ISSUE" "superAFK: <PR #N — URL | merged <sha> | branch <name> kept | branch discarded>"
 ```
-2. Completeness check — read the idea text and the realized files, then judge honestly:
+2. Completeness check:
+   - **discard / keep** → treat as UNFINISHED; skip the judgment.
+   - **merge / PR** → read the idea text and the realized files, then judge honestly:
 ```bash
 IDEA="$(bash "$S/gh.sh" body "$ISSUE")"
 FILES="$(bash "$S/scan.sh" "$ISSUE")"
 ```
-Do the landed specs/plans cover the WHOLE idea? Partial work is "unfinished".
+     Do the landed specs/plans cover the WHOLE idea? Partial work is "unfinished".
 3a. Finished → label only (a human closes the issue):
 ```bash
 bash "$S/gh.sh" add-finished "$ISSUE"
 ```
-3b. Unfinished → append a handoff comment:
+3b. Unfinished → append an outcome-aware handoff comment:
 ```bash
-bash "$S/gh.sh" comment "$ISSUE" "superAFK handoff — PR #$PR_NUM. Landed: <files>. Missing vs idea: <gap>. Next: <next spec/plan>."
+bash "$S/gh.sh" comment "$ISSUE" "superAFK handoff — <outcome>. Landed: <files>. Missing vs idea: <gap>. Next: <next spec/plan>."
 ```
 4. Release the lock:
 ```bash
