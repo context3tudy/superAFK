@@ -33,6 +33,8 @@ if [ -f skills/superafk/SKILL.md ]; then
   assert_contains "$w" "preflight" "worker: runs preflight"
   ck=pass; case "$w" in *"Closes #"*|*"Fixes #"*|*"Resolves #"*) ck=fail;; esac
   assert_eq "pass" "$ck" "worker: no closing keyword"
+  assert_contains "$w" "has-auto" "worker: reads autonomy via has-auto"
+  assert_contains "$w" "discard" "worker: takeover covers non-PR outcomes"
 fi
 
 assert_report || exit 1
